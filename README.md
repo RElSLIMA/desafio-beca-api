@@ -1,4 +1,4 @@
-# 🏦 Desafio Beca - Sistema Bancário Resiliente
+# 🏦 Desafio Beca - Sistema Bancário
 
 API REST desenvolvida para simular operações bancárias com arquitetura de microsserviços, mensageria assíncrona e relatórios.
 
