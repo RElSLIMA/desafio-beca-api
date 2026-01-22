@@ -19,35 +19,29 @@ Para executar este projeto, você precisará de:
    - Crie um banco de dados chamado: `desafio_db`.
    - Usuário/Senha configurados no `application.properties` (padrão `postgres`/`postgres` ou ajuste conforme seu ambiente).
 
-## 🛠️ Como Rodar (Passo a Passo)
+## 🛠️ Como Rodar
 
-### 1. Clonar o repositório
+Você só precisa ter o **Docker** instalado. Não é necessário Java, Maven ou Postgres local.
+
+### 1. Clone o repositório:
 ```bash
-    git clone [https://github.com/RElSLIMA/desafio-beca-api.git](https://github.com/RElSLIMA/desafio-beca-api.git)
+    git clone [https://github.com/SEU-USER/desafio-beca-api.git](https://github.com/SEU-USER/desafio-beca-api.git)
     cd desafio-beca-api
 ```
 
-### 2. Gerar o executável (.jar)
-
-Antes de subir o Docker, é necessário compilar o projeto:
-
-```bash
-    mvn clean package -DskipTests
-```
-
-### 3. Subir a Aplicação com Docker
-
-Este comando subirá o Zookeeper, Kafka e a API Containerizada:
+### 2. Rode tudo com um único comando:
 
 ```bash
     docker-compose up -d --build
 ```
+(Na primeira vez, vai demorar uns minutos pois o Docker vai baixar o Maven e compilar o projeto para você).
 
-### 4. Acessar
+### 3. Acessar
 
-* **Swagger UI:** [http://localhost:8080/swagger-ui.html](https://www.google.com/search?q=http://localhost:8080/swagger-ui.html)
-* **API:** http://localhost:8080
-
+* **Swagger UI (Documentação):** http://localhost:8080/swagger-ui.html
+* **Banco de Dados (Postgres):** localhost:5432
+    * **User:** postgres
+    * **Password:** password
 ---
 
 ### 🧪 Testes
