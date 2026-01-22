@@ -1,58 +1,63 @@
-# 🏦 Desafio Beca - Sistema Bancário
+# 🏦 Desafio Beca - Sistema Bancário 
 
 API REST desenvolvida para simular operações bancárias com arquitetura de microsserviços, mensageria assíncrona e relatórios.
 
-## 🚀 Tecnologias Utilizadas
+## 🚀 Tecnologias
 
 - **Java 17** + **Spring Boot 3**
-- **Spring Security** + **JWT** (Autenticação Stateless)
-- **Spring Data JPA** (PostgreSQL / H2)
-- **Apache Kafka** (Mensageria e Processamento Assíncrono)
-- **OpenFeign** (Integração com BrasilAPI e MockAPI)
-- **OpenPDF** (Geração de Extratos Bancários)
-- **Swagger/OpenAPI** (Documentação Automática)
-- **JUnit 5 + Mockito** (Testes Unitários)
-- **Docker** (Containerização do Kafka e Zookeeper)
+- **Docker** & **Docker Compose**
+- **Apache Kafka**
+- **PostgreSQL**
+- **Swagger/OpenAPI**
 
-## ⚙️ Funcionalidades
+## ⚙️ Pré-requisitos para Rodar
 
-### 1. Transações Financeiras
-- **Depósito:** Adiciona saldo e notifica via Kafka.
-- **Saque/Transferência:** Valida saldo na API externa (Mock), debita e notifica via Kafka.
-- **Câmbio:** Consulta cotação do Dólar em tempo real (BrasilAPI) e grava na transação.
+Para executar este projeto, você precisará de:
+1. **Java 17** e **Maven** instalados.
+2. **Docker** e **Docker Compose** instalados.
+3. **PostgreSQL** rodando localmente na porta `5432`.
+   - Crie um banco de dados chamado: `desafio_db`.
+   - Usuário/Senha configurados no `application.properties` (padrão `postgres`/`postgres` ou ajuste conforme seu ambiente).
 
-### 2. Processamento Assíncrono (CQRS Lite)
-- Toda transação gera um evento no tópico `transacoes-realizadas`.
-- Um **Consumer** escuta esses eventos e atualiza uma tabela de Analytics (Total gasto no dia) sem travar a API principal.
+## 🛠️ Como Rodar (Passo a Passo)
 
-### 3. Relatórios e Documentação
-- **PDF:** Endpoint `/transacoes/exportar` gera um extrato detalhado.
-- **Swagger:** Interface interativa em `/swagger-ui.html`.
+### 1. Clonar o repositório
+```bash
+    git clone [https://github.com/RElSLIMA/desafio-beca-api.git](https://github.com/RElSLIMA/desafio-beca-api.git)
+    cd desafio-beca-api
+```
 
-## 🛠️ Como Rodar
+### 2. Gerar o executável (.jar)
 
-1. **Subir o Kafka (Docker):**
-   ```bash
-   docker-compose up -d
+Antes de subir o Docker, é necessário compilar o projeto:
 
-2. **Rodar a Aplicação:**
-* Execute a classe `DesafioBecaApiApplication`.
-* A API rodará em `http://localhost:8080`.
+```bash
+    mvn clean package -DskipTests
+```
 
+### 3. Subir a Aplicação com Docker
 
-3. **Acessar Documentação:**
-* Abra `http://localhost:8080/swagger-ui.html`
+Este comando subirá o Zookeeper, Kafka e a API Containerizada:
 
+```bash
+    docker-compose up -d --build
+```
 
+### 4. Acessar
 
-## 🧪 Testes
-
-O projeto conta com testes unitários cobrindo o Core Business (`TransacaoService`), validando:
-
-* Cálculos de saldo.
-* Integração com Mocks.
-* Disparo de eventos Kafka.
+* **Swagger UI:** [http://localhost:8080/swagger-ui.html](https://www.google.com/search?q=http://localhost:8080/swagger-ui.html)
+* **API:** http://localhost:8080
 
 ---
 
-Desenvolvido por **Gabriel Reis** 🚀
+### 🧪 Testes
+
+Para rodar os testes unitários:
+
+```bash
+    mvn test
+```
+
+## 🐳 Detalhes da Infraestrutura Docker
+
+O projeto utiliza `host.docker.internal` para conectar o container da API ao PostgreSQL do host (máquina local). Certifique-se de que seu banco local aceite conexões TCP/IP.
