@@ -1,5 +1,6 @@
 package com.gabriel.desafio.beca.api.domain.user;
 
+import com.gabriel.desafio.beca.api.infra.client.MockSaldoClient;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,9 @@ public class UsuarioService {
 
     @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private MockSaldoClient mockSaldoClient;
 
     @Transactional
     public Usuario criarUsuario(UsuarioDTO dados) {
@@ -34,7 +38,12 @@ public class UsuarioService {
                 senhaCriptografada,
                 dados.cpf()
         );
-        return repository.save(novoUsuario);
+
+        Usuario usuarioSalvo = repository.save(novoUsuario);
+
+        mockSaldoClient.criarConta(usuarioSalvo.getId().toString());
+
+        return usuarioSalvo;
     }
 
     public List<Usuario> listarTodos() {
@@ -108,5 +117,4 @@ public class UsuarioService {
             throw new RuntimeException("Erro ao processar arquivo: " + e.getMessage());
         }
     }
-
 }

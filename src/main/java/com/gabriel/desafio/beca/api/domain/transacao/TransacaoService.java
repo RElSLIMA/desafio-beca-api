@@ -35,6 +35,8 @@ public class TransacaoService {
         Usuario usuario = usuarioRepository.findById(dados.usuarioId())
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado!"));
 
+        System.out.println("--- Iniciando Transação para: " + usuario.getNome() + " ---");
+
         if (dados.tipo() == TipoTransacao.SAQUE || dados.tipo() == TipoTransacao.TRANSFERENCIA) {
             BigDecimal saldoDisponivel = mockSaldoClient.buscarSaldo(usuario.getId().toString());
 
@@ -48,14 +50,20 @@ public class TransacaoService {
 
         if (dados.tipo() == TipoTransacao.DEPOSITO) {
             BigDecimal saldoDisponivel = mockSaldoClient.buscarSaldo(usuario.getId().toString());
+
             BigDecimal novoSaldo = saldoDisponivel.add(dados.valor());
+
             mockSaldoClient.atualizarSaldo(usuario.getId().toString(), novoSaldo);
         }
 
         BigDecimal cotacaoAtual = BigDecimal.ZERO;
-        var cambioDTO = brasilApiClient.buscarCotacaoDolar();
-        if (cambioDTO != null) {
-            cotacaoAtual = cambioDTO.valor();
+        try {
+            var cambioDTO = brasilApiClient.buscarCotacaoDolar();
+            if (cambioDTO != null) {
+                cotacaoAtual = cambioDTO.valor();
+            }
+        } catch (Exception e) {
+            System.err.println("Aviso: Não foi possível buscar cotação do dólar no momento.");
         }
 
         Transacao novaTransacao = new Transacao(
