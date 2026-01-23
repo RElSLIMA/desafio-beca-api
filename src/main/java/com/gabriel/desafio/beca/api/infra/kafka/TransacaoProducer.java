@@ -1,21 +1,25 @@
 package com.gabriel.desafio.beca.api.infra.kafka;
 
 import com.gabriel.desafio.beca.api.domain.transacao.Transacao;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class TransacaoProducer {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    @Autowired
+    private KafkaTemplate<String, Object> kafkaTemplate;
 
-    public TransacaoProducer(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
+    private final String TOPICO = "transaction.requested";
 
     public void enviarEvento(Transacao transacao) {
-        kafkaTemplate.send("transacoes-realizadas", transacao);
+        try {
+            kafkaTemplate.send(TOPICO, transacao);
 
-        System.out.println("KAFKA: Evento de transação enviado! ID: " + transacao.getId());
+            System.out.println("KAFKA PRODUCER: Mensagem enviada para o tópico " + TOPICO);
+        } catch (Exception e) {
+            System.err.println("ERRO KAFKA: Falha ao enviar mensagem: " + e.getMessage());
+        }
     }
 }

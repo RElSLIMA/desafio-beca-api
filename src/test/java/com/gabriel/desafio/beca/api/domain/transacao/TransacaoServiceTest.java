@@ -20,8 +20,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,13 +44,10 @@ class TransacaoServiceTest {
     private TransacaoService service;
 
     @Test
-    @DisplayName("Deve registrar um Depósito com sucesso")
-    void deveRegistrarDepositoComSucesso() {
+    @DisplayName("Cenário Crítico 1: Deve salvar transação como PENDING e enviar para Kafka")
+    void deveRegistrarTransacaoComSucesso() {
         UUID usuarioId = UUID.randomUUID();
-
-        Usuario usuarioMock = new Usuario("Gabriel", "gabriel@email.com", "123", "000.000.000-00");
-
-        ReflectionTestUtils.setField(usuarioMock, "id", usuarioId);
+        Usuario usuarioMock = criarUsuarioMock(usuarioId);
 
         TransacaoDTO dadosEntrada = new TransacaoDTO(
                 new BigDecimal("100.00"),
@@ -61,21 +56,69 @@ class TransacaoServiceTest {
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuarioMock));
+        when(brasilApiClient.buscarCotacaoDolar()).thenReturn(new CambioDTO("USD", new BigDecimal("5.50")));
 
-        when(mockSaldoClient.buscarSaldo(anyString())).thenReturn(new BigDecimal("50.00"));
+        when(repository.save(any(Transacao.class))).thenAnswer(invocation -> {
+            Transacao t = invocation.getArgument(0);
+            ReflectionTestUtils.setField(t, "id", UUID.randomUUID());
+            return t;
+        });
 
-        when(brasilApiClient.buscarCotacaoDolar()).thenReturn(new CambioDTO("Dólar", new BigDecimal("5.50")));
+        Transacao resultado = service.registrar(dadosEntrada);
 
-        when(repository.save(any(Transacao.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        assertNotNull(resultado.getId());
+        assertEquals(StatusTransacao.PENDING, resultado.getStatus());
+        assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
+
+        verify(transacaoProducer, times(1)).enviarEvento(any(Transacao.class));
+        verify(mockSaldoClient, never()).atualizarSaldo(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("Cenário Crítico 2: Deve funcionar mesmo se a BrasilAPI estiver fora do ar")
+    void deveRegistrarMesmoSemBrasilAPI() {
+        UUID usuarioId = UUID.randomUUID();
+        Usuario usuarioMock = criarUsuarioMock(usuarioId);
+
+        TransacaoDTO dadosEntrada = new TransacaoDTO(
+                BigDecimal.TEN,
+                TipoTransacao.SAQUE,
+                usuarioId
+        );
+
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuarioMock));
+        when(brasilApiClient.buscarCotacaoDolar()).thenThrow(new RuntimeException("API Fora do Ar"));
+        when(repository.save(any(Transacao.class))).thenAnswer(i -> i.getArgument(0));
 
         Transacao resultado = service.registrar(dadosEntrada);
 
         assertNotNull(resultado);
-        assertEquals(new BigDecimal("100.00"), resultado.getValor());
-        assertEquals(TipoTransacao.DEPOSITO, resultado.getTipo());
-        assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
-
+        assertEquals(BigDecimal.ZERO, resultado.getTaxaCambio());
         verify(transacaoProducer, times(1)).enviarEvento(any(Transacao.class));
-        verify(mockSaldoClient, times(1)).atualizarSaldo(anyString(), eq(new BigDecimal("150.00")));
+    }
+
+    @Test
+    @DisplayName("Cenário Crítico 3: Não deve enviar ao Kafka se usuário não existir")
+    void deveFalharSeUsuarioInexistente() {
+        UUID idInexistente = UUID.randomUUID();
+
+        TransacaoDTO dadosEntrada = new TransacaoDTO(
+                BigDecimal.TEN,
+                TipoTransacao.DEPOSITO,
+                idInexistente
+        );
+
+        when(usuarioRepository.findById(idInexistente)).thenReturn(Optional.empty());
+
+        assertThrows(RuntimeException.class, () -> service.registrar(dadosEntrada));
+
+        verify(transacaoProducer, never()).enviarEvento(any());
+        verify(repository, never()).save(any());
+    }
+
+    private Usuario criarUsuarioMock(UUID id) {
+        Usuario u = new Usuario("Gabriel", "gabriel@email.com", "123", "000.000.000-00");
+        ReflectionTestUtils.setField(u, "id", id);
+        return u;
     }
 }

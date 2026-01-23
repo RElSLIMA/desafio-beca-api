@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class TransacaoService {
@@ -35,26 +36,7 @@ public class TransacaoService {
         Usuario usuario = usuarioRepository.findById(dados.usuarioId())
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado!"));
 
-        System.out.println("--- Iniciando Transação para: " + usuario.getNome() + " ---");
-
-        if (dados.tipo() == TipoTransacao.SAQUE || dados.tipo() == TipoTransacao.TRANSFERENCIA) {
-            BigDecimal saldoDisponivel = mockSaldoClient.buscarSaldo(usuario.getId().toString());
-
-            if (saldoDisponivel.compareTo(dados.valor()) < 0) {
-                throw new RuntimeException("Saldo insuficiente (Mock)! Disponível: R$ " + saldoDisponivel);
-            }
-
-            BigDecimal novoSaldo = saldoDisponivel.subtract(dados.valor());
-            mockSaldoClient.atualizarSaldo(usuario.getId().toString(), novoSaldo);
-        }
-
-        if (dados.tipo() == TipoTransacao.DEPOSITO) {
-            BigDecimal saldoDisponivel = mockSaldoClient.buscarSaldo(usuario.getId().toString());
-
-            BigDecimal novoSaldo = saldoDisponivel.add(dados.valor());
-
-            mockSaldoClient.atualizarSaldo(usuario.getId().toString(), novoSaldo);
-        }
+        System.out.println("--- Recebendo solicitação de Transação para: " + usuario.getNome() + " ---");
 
         BigDecimal cotacaoAtual = BigDecimal.ZERO;
         try {
@@ -63,7 +45,7 @@ public class TransacaoService {
                 cotacaoAtual = cambioDTO.valor();
             }
         } catch (Exception e) {
-            System.err.println("Aviso: Não foi possível buscar cotação do dólar no momento.");
+            System.err.println("Aviso: Não foi possível buscar cotação do dólar (Seguindo fluxo).");
         }
 
         Transacao novaTransacao = new Transacao(
@@ -72,22 +54,25 @@ public class TransacaoService {
                 usuario,
                 cotacaoAtual
         );
+        novaTransacao.setStatus(StatusTransacao.PENDING);
+
         Transacao transacaoSalva = repository.save(novaTransacao);
 
         try {
             transacaoProducer.enviarEvento(transacaoSalva);
+            System.out.println("API: Evento enviado para o Kafka. ID: " + transacaoSalva.getId());
         } catch (Exception e) {
-            System.err.println("Erro ao enviar para o Kafka (mas a transação foi salva): " + e.getMessage());
+            System.err.println("CRÍTICO: Erro ao enviar para o Kafka: " + e.getMessage());
         }
 
         return transacaoSalva;
     }
 
-    public BigDecimal consultarSaldo(java.util.UUID usuarioId) {
+    public BigDecimal consultarSaldo(UUID usuarioId) {
         return mockSaldoClient.buscarSaldo(usuarioId.toString());
     }
 
-    public ExtratoDTO buscarExtrato(java.util.UUID usuarioId) {
+    public ExtratoDTO buscarExtrato(UUID usuarioId) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
