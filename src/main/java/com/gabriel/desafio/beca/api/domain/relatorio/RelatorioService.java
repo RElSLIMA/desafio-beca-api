@@ -29,7 +29,7 @@ public class RelatorioService {
             Paragraph titulo = new Paragraph("Extrato Bancário", fonteTitulo);
             titulo.setAlignment(Element.ALIGN_CENTER);
             document.add(titulo);
-            document.add(Chunk.NEWLINE); // Pula linha
+            document.add(Chunk.NEWLINE);
 
             Font fonteDados = FontFactory.getFont(FontFactory.HELVETICA, 12, Color.DARK_GRAY);
             document.add(new Paragraph("Cliente: " + extrato.usuario(), fonteDados));
@@ -37,9 +37,9 @@ public class RelatorioService {
             document.add(new Paragraph("Data de Emissão: " + java.time.LocalDate.now(), fonteDados));
             document.add(Chunk.NEWLINE);
 
-            PdfPTable table = new PdfPTable(4); // 4 Colunas
+            PdfPTable table = new PdfPTable(4);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{3f, 2f, 2f, 2f}); // Largura das colunas
+            table.setWidths(new float[]{3f, 2f, 2f, 2f});
 
             addTableHeader(table, "ID");
             addTableHeader(table, "Data");
@@ -49,12 +49,12 @@ public class RelatorioService {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
             for (Transacao t : extrato.transacoes()) {
-                table.addCell(t.getId().toString().substring(0, 8) + "..."); // ID resumido
+                table.addCell(t.getId().toString().substring(0, 8) + "...");
                 table.addCell(t.getData().format(formatter));
                 table.addCell(t.getTipo().toString());
 
                 Font fonteValor = t.getTipo().toString().equals("DEPOSITO") ?
-                        FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(0, 100, 0)) : // Verde
+                        FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(0, 100, 0)) :
                         FontFactory.getFont(FontFactory.HELVETICA, 10, Color.RED);
 
                 table.addCell(new Paragraph(t.getValor().toString(), fonteValor));
