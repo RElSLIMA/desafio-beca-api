@@ -1,5 +1,6 @@
 package com.gabriel.desafio.beca.api.infra.client;
 
+import com.gabriel.desafio.beca.api.application.dto.SaldoExternoDTO;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;

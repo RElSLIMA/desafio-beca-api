@@ -1,6 +1,7 @@
 package com.gabriel.desafio.beca.api.infra.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.gabriel.desafio.beca.api.application.dto.CambioDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
