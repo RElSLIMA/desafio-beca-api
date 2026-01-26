@@ -57,11 +57,13 @@ public class Usuario implements UserDetails, Serializable {
     }
 
     @Override
+    @JsonIgnore
     public String getUsername() {
         return email;
     }
 
     @Override
+    @JsonIgnore
     public String getPassword() {
         return senha;
     }

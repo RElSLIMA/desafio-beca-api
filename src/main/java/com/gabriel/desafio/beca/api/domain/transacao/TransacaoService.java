@@ -34,9 +34,21 @@ public class TransacaoService {
     @Transactional
     public Transacao registrar(TransacaoDTO dados) {
         Usuario usuario = usuarioRepository.findById(dados.usuarioId())
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado!"));
+                .orElseThrow(() -> new RuntimeException("Usuário remetente não encontrado!"));
 
         System.out.println("--- Recebendo solicitação de Transação para: " + usuario.getNome() + " ---");
+
+        Usuario destinatario = null;
+        if (dados.tipo() == TipoTransacao.TRANSFERENCIA) {
+            if (dados.destinatarioId() == null) {
+                throw new IllegalArgumentException("Para transferência, o ID do destinatário é obrigatório!");
+            }
+            if (dados.usuarioId().equals(dados.destinatarioId())) {
+                throw new IllegalArgumentException("Não é possível transferir para a mesma conta!");
+            }
+            destinatario = usuarioRepository.findById(dados.destinatarioId())
+                    .orElseThrow(() -> new RuntimeException("Usuário destinatário não encontrado!"));
+        }
 
         BigDecimal cotacaoAtual = BigDecimal.ZERO;
         try {
@@ -52,6 +64,7 @@ public class TransacaoService {
                 dados.valor(),
                 dados.tipo(),
                 usuario,
+                destinatario,
                 cotacaoAtual
         );
         novaTransacao.setStatus(StatusTransacao.PENDING);

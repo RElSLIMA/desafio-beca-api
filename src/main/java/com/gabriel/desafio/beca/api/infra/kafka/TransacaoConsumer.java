@@ -48,29 +48,46 @@ public class TransacaoConsumer {
 
         } catch (IllegalArgumentException e) {
             transacao.setStatus(StatusTransacao.REJECTED);
-            System.out.println("PROCESSOR: Transação REJEITADA ❌ (Saldo insuficiente)");
+            System.out.println("PROCESSOR: Transação REJEITADA ❌ (" + e.getMessage() + ")");
+        } catch (Exception e) {
+            throw e;
         }
 
         repository.save(transacao);
     }
 
     private void validarSaldoEAtualizarMock(Transacao transacao) {
-        String usuarioId = transacao.getUsuario().getId().toString();
+        String remetenteId = transacao.getUsuario().getId().toString();
+        BigDecimal valor = transacao.getValor();
 
-        if (transacao.getTipo() == TipoTransacao.SAQUE || transacao.getTipo() == TipoTransacao.TRANSFERENCIA) {
-            BigDecimal saldoAtual = mockSaldoClient.buscarSaldo(usuarioId);
-
-            if (saldoAtual.compareTo(transacao.getValor()) < 0) {
+        if (transacao.getTipo() == TipoTransacao.SAQUE) {
+            BigDecimal saldoAtual = mockSaldoClient.buscarSaldo(remetenteId);
+            if (saldoAtual.compareTo(valor) < 0) {
                 throw new IllegalArgumentException("Saldo insuficiente");
             }
-
-            BigDecimal novoSaldo = saldoAtual.subtract(transacao.getValor());
-            mockSaldoClient.atualizarSaldo(usuarioId, novoSaldo);
+            mockSaldoClient.atualizarSaldo(remetenteId, saldoAtual.subtract(valor));
         }
+
         else if (transacao.getTipo() == TipoTransacao.DEPOSITO) {
-            BigDecimal saldoAtual = mockSaldoClient.buscarSaldo(usuarioId);
-            BigDecimal novoSaldo = saldoAtual.add(transacao.getValor());
-            mockSaldoClient.atualizarSaldo(usuarioId, novoSaldo);
+            BigDecimal saldoAtual = mockSaldoClient.buscarSaldo(remetenteId);
+            mockSaldoClient.atualizarSaldo(remetenteId, saldoAtual.add(valor));
+        }
+
+        else if (transacao.getTipo() == TipoTransacao.TRANSFERENCIA) {
+            BigDecimal saldoRemetente = mockSaldoClient.buscarSaldo(remetenteId);
+            if (saldoRemetente.compareTo(valor) < 0) {
+                throw new IllegalArgumentException("Saldo insuficiente para transferência");
+            }
+            mockSaldoClient.atualizarSaldo(remetenteId, saldoRemetente.subtract(valor));
+
+            if (transacao.getDestinatario() != null) {
+                String destinatarioId = transacao.getDestinatario().getId().toString();
+                BigDecimal saldoDestinatario = mockSaldoClient.buscarSaldo(destinatarioId);
+
+                mockSaldoClient.atualizarSaldo(destinatarioId, saldoDestinatario.add(valor));
+
+                System.out.println("TRANSFERENCIA: Deu " + valor + " para usuário " + destinatarioId);
+            }
         }
     }
 

@@ -10,9 +10,11 @@ public record TransacaoDTO(
         @Positive(message = "O valor deve ser maior que zero")
         BigDecimal valor,
 
-        @NotNull(message = "O tipo da transação é obrigatório (DEPOSITO, SAQUE, TRANSFERENCIA, COMPRA)")
+        @NotNull(message = "O tipo da transação é obrigatório")
         TipoTransacao tipo,
 
-        @NotNull(message = "O ID do usuário é obrigatório")
-        UUID usuarioId
+        @NotNull(message = "O ID do usuário (remetente) é obrigatório")
+        UUID usuarioId,
+
+        UUID destinatarioId
 ) {}

@@ -35,7 +35,7 @@ Para rodar este projeto, você precisa apenas de:
 ### 1️⃣ Clone o repositório
 
 ```bash
-git clone https://github.com/SEU-USER/desafio-beca-api.git
+git clone https://github.com/RElSLIMA/desafio-beca-api.git
 cd desafio-beca-api
 ```
 

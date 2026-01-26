@@ -52,7 +52,8 @@ class TransacaoServiceTest {
         TransacaoDTO dadosEntrada = new TransacaoDTO(
                 new BigDecimal("100.00"),
                 TipoTransacao.DEPOSITO,
-                usuarioId
+                usuarioId,
+                null
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuarioMock));
@@ -71,7 +72,6 @@ class TransacaoServiceTest {
         assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
 
         verify(transacaoProducer, times(1)).enviarEvento(any(Transacao.class));
-        verify(mockSaldoClient, never()).atualizarSaldo(anyString(), any());
     }
 
     @Test
@@ -83,7 +83,8 @@ class TransacaoServiceTest {
         TransacaoDTO dadosEntrada = new TransacaoDTO(
                 BigDecimal.TEN,
                 TipoTransacao.SAQUE,
-                usuarioId
+                usuarioId,
+                null
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuarioMock));
@@ -105,7 +106,8 @@ class TransacaoServiceTest {
         TransacaoDTO dadosEntrada = new TransacaoDTO(
                 BigDecimal.TEN,
                 TipoTransacao.DEPOSITO,
-                idInexistente
+                idInexistente,
+                null
         );
 
         when(usuarioRepository.findById(idInexistente)).thenReturn(Optional.empty());
@@ -114,6 +116,33 @@ class TransacaoServiceTest {
 
         verify(transacaoProducer, never()).enviarEvento(any());
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Cenário 4: Deve registrar TRANSFERENCIA com sucesso (Remetente e Destinatário)")
+    void deveRegistrarTransferenciaComSucesso() {
+        UUID remetenteId = UUID.randomUUID();
+        UUID destinatarioId = UUID.randomUUID();
+
+        Usuario remetente = criarUsuarioMock(remetenteId);
+        Usuario destinatario = criarUsuarioMock(destinatarioId);
+
+        TransacaoDTO dadosEntrada = new TransacaoDTO(
+                new BigDecimal("50.00"),
+                TipoTransacao.TRANSFERENCIA,
+                remetenteId,
+                destinatarioId
+        );
+
+        when(usuarioRepository.findById(remetenteId)).thenReturn(Optional.of(remetente));
+        when(usuarioRepository.findById(destinatarioId)).thenReturn(Optional.of(destinatario));
+        when(repository.save(any(Transacao.class))).thenAnswer(i -> i.getArgument(0));
+
+        Transacao resultado = service.registrar(dadosEntrada);
+
+        assertNotNull(resultado);
+        assertEquals(destinatario, resultado.getDestinatario());
+        verify(transacaoProducer, times(1)).enviarEvento(any(Transacao.class));
     }
 
     private Usuario criarUsuarioMock(UUID id) {

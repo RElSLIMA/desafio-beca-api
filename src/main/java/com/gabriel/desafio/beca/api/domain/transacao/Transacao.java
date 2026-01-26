@@ -33,15 +33,20 @@ public class Transacao implements Serializable {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    @ManyToOne
+    @JoinColumn(name = "destinatario_id")
+    private Usuario destinatario;
+
     @Column(name = "taxa_cambio")
     private BigDecimal taxaCambio;
 
     public Transacao() {}
 
-    public Transacao(BigDecimal valor, TipoTransacao tipo, Usuario usuario, BigDecimal taxaCambio) {
+    public Transacao(BigDecimal valor, TipoTransacao tipo, Usuario usuario, Usuario destinatario, BigDecimal taxaCambio) {
         this.valor = valor;
         this.tipo = tipo;
         this.usuario = usuario;
+        this.destinatario = destinatario;
         this.data = LocalDateTime.now();
         this.taxaCambio = taxaCambio;
         this.status = StatusTransacao.PENDING;
@@ -53,6 +58,7 @@ public class Transacao implements Serializable {
     public LocalDateTime getData() { return data; }
     public TipoTransacao getTipo() { return tipo; }
     public Usuario getUsuario() { return usuario; }
+    public Usuario getDestinatario() { return destinatario; }
     public BigDecimal getTaxaCambio() { return taxaCambio; }
     public StatusTransacao getStatus() { return status; }
     public void setStatus(StatusTransacao status) { this.status = status; }
