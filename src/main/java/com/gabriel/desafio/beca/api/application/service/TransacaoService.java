@@ -1,17 +1,19 @@
 package com.gabriel.desafio.beca.api.application.service;
 
+import com.gabriel.desafio.beca.api.application.dto.ExtratoDTO;
+import com.gabriel.desafio.beca.api.application.dto.TransacaoDTO;
+import com.gabriel.desafio.beca.api.domain.model.StatusTransacao;
+import com.gabriel.desafio.beca.api.domain.model.TipoTransacao;
 import com.gabriel.desafio.beca.api.domain.model.Transacao;
 import com.gabriel.desafio.beca.api.domain.model.Usuario;
 import com.gabriel.desafio.beca.api.domain.repository.TransacaoRepository;
 import com.gabriel.desafio.beca.api.domain.repository.UsuarioRepository;
-import com.gabriel.desafio.beca.api.application.dto.ExtratoDTO;
-import com.gabriel.desafio.beca.api.domain.model.StatusTransacao;
-import com.gabriel.desafio.beca.api.domain.model.TipoTransacao;
-import com.gabriel.desafio.beca.api.application.dto.TransacaoDTO;
 import com.gabriel.desafio.beca.api.infra.client.BrasilApiClient;
 import com.gabriel.desafio.beca.api.infra.client.MockSaldoClient;
 import com.gabriel.desafio.beca.api.infra.messaging.TransacaoProducer;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import java.util.UUID;
 
 @Service
 public class TransacaoService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransacaoService.class);
 
     @Autowired
     private TransacaoRepository repository;
@@ -40,60 +44,28 @@ public class TransacaoService {
 
     @Transactional
     public Transacao registrar(TransacaoDTO dados) {
+        log.info("Iniciando registro de transação ({}) - Tipo: {} - Usuário: {}",
+                dados.moeda(), dados.tipo(), dados.usuarioId());
+
         Usuario usuario = usuarioRepository.findById(dados.usuarioId())
-                .orElseThrow(() -> new EntityNotFoundException("Usuário remetente não encontrado!"));
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
 
-        System.out.println("--- Recebendo solicitação de Transação para: " + usuario.getNome() + " ---");
+        Usuario destinatario = buscarDestinatario(dados);
+        BigDecimal taxaCambio = obterTaxaCambio(dados.moeda());
 
-        Usuario destinatario = null;
-        if (dados.tipo() == TipoTransacao.TRANSFERENCIA) {
-            if (dados.destinatarioId() == null) {
-                throw new IllegalArgumentException("Para transferência, o ID do destinatário é obrigatório!");
-            }
-            if (dados.usuarioId().equals(dados.destinatarioId())) {
-                throw new IllegalArgumentException("Não é possível transferir para a mesma conta!");
-            }
-            destinatario = usuarioRepository.findById(dados.destinatarioId())
-                    .orElseThrow(() -> new EntityNotFoundException("Usuário destinatário não encontrado!"));
-        }
-
-        if (dados.tipo() == TipoTransacao.SAQUE || dados.tipo() == TipoTransacao.TRANSFERENCIA) {
-            BigDecimal saldoAtual = mockSaldoClient.buscarSaldo(usuario.getId().toString());
-
-            if (saldoAtual.compareTo(dados.valor()) < 0) {
-                throw new IllegalArgumentException("Saldo insuficiente. Saldo atual: " + saldoAtual);
-            }
-        }
-
-        BigDecimal cotacaoAtual = BigDecimal.ZERO;
-        try {
-            var cambioDTO = brasilApiClient.buscarCotacaoDolar();
-            if (cambioDTO != null) {
-                cotacaoAtual = cambioDTO.valor();
-            }
-        } catch (Exception e) {
-            System.err.println("Aviso: Não foi possível buscar cotação do dólar (Seguindo fluxo).");
-        }
-
-        Transacao novaTransacao = new Transacao(
+        Transacao transacao = new Transacao(
                 dados.valor(),
                 dados.tipo(),
                 usuario,
                 destinatario,
-                cotacaoAtual
+                taxaCambio
         );
-        novaTransacao.setStatus(StatusTransacao.PENDING);
+        transacao.setStatus(StatusTransacao.PENDING);
 
-        Transacao transacaoSalva = repository.save(novaTransacao);
+        repository.save(transacao);
+        notificarKafka(transacao);
 
-        try {
-            transacaoProducer.enviarEvento(transacaoSalva);
-            System.out.println("API: Evento enviado para o Kafka. ID: " + transacaoSalva.getId());
-        } catch (Exception e) {
-            System.err.println("CRÍTICO: Erro ao enviar para o Kafka: " + e.getMessage());
-        }
-
-        return transacaoSalva;
+        return transacao;
     }
 
     public BigDecimal consultarSaldo(UUID usuarioId) {
@@ -104,14 +76,49 @@ public class TransacaoService {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
 
-        BigDecimal saldo = mockSaldoClient.buscarSaldo(usuarioId.toString());
-
+        BigDecimal saldoMock = mockSaldoClient.buscarSaldo(usuarioId.toString());
         List<Transacao> historico = repository.findHistoricoCompleto(usuarioId);
 
-        return new ExtratoDTO(
-                usuario.getNome(),
-                saldo,
-                historico
-        );
+        return new ExtratoDTO(usuario.getNome(), saldoMock, historico);
+    }
+
+    private Usuario buscarDestinatario(TransacaoDTO dados) {
+        if (dados.tipo() != TipoTransacao.TRANSFERENCIA) {
+            return null;
+        }
+
+        if (dados.destinatarioId() == null) {
+            throw new IllegalArgumentException("Destinatário é obrigatório para transferências");
+        }
+
+        if (dados.usuarioId().equals(dados.destinatarioId())) {
+            throw new IllegalArgumentException("Remetente e destinatário não podem ser iguais");
+        }
+
+        return usuarioRepository.findById(dados.destinatarioId())
+                .orElseThrow(() -> new EntityNotFoundException("Destinatário não encontrado"));
+    }
+
+    private BigDecimal obterTaxaCambio(String moeda) {
+        if (moeda == null || moeda.equalsIgnoreCase("BRL")) {
+            return BigDecimal.ONE;
+        }
+
+        try {
+            var cambio = brasilApiClient.buscarCotacao(moeda);
+            return cambio != null ? cambio.valor() : BigDecimal.ZERO;
+        } catch (Exception e) {
+            log.warn("Falha ao buscar cotação para moeda {}, salvando com taxa 0. Erro: {}", moeda, e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private void notificarKafka(Transacao transacao) {
+        try {
+            transacaoProducer.enviarEvento(transacao);
+            log.info("Evento de transação (ID: {}) enviado para o Kafka", transacao.getId());
+        } catch (Exception e) {
+            log.error("Erro ao enviar evento para o Kafka", e);
+        }
     }
 }

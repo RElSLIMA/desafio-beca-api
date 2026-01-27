@@ -7,7 +7,10 @@ import com.gabriel.desafio.beca.api.infra.client.MockSaldoClient;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,7 +21,7 @@ public class UsuarioService {
     private UsuarioRepository repository;
 
     @Autowired
-    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private MockSaldoClient mockSaldoClient;
@@ -42,8 +45,8 @@ public class UsuarioService {
         );
 
         Usuario usuarioSalvo = repository.save(novoUsuario);
-
-        mockSaldoClient.criarConta(usuarioSalvo.getId().toString());
+        BigDecimal saldoInicial = gerarSaldoAleatorio();
+        mockSaldoClient.criarConta(usuarioSalvo.getId().toString(), saldoInicial);
 
         return usuarioSalvo;
     }
@@ -63,7 +66,7 @@ public class UsuarioService {
 
         usuario.setNome(dados.nome());
         usuario.setEmail(dados.email());
-        usuario.setSenha(dados.senha());
+        usuario.setSenha(passwordEncoder.encode(dados.senha()));
 
         return repository.save(usuario);
     }
@@ -79,19 +82,14 @@ public class UsuarioService {
         try {
             org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(arquivo.getInputStream());
             org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
-
             org.apache.poi.ss.usermodel.DataFormatter dataFormatter = new org.apache.poi.ss.usermodel.DataFormatter();
 
             System.out.println("Iniciando leitura do Excel...");
 
             for (org.apache.poi.ss.usermodel.Row row : sheet) {
-                if (row.getRowNum() == 0) {
-                    continue;
-                }
+                if (row.getRowNum() == 0) continue;
 
-                if (row.getCell(0) == null && row.getCell(1) == null) {
-                    continue;
-                }
+                if (row.getCell(0) == null && row.getCell(1) == null) continue;
 
                 try {
                     String nome = dataFormatter.formatCellValue(row.getCell(0));
@@ -100,13 +98,12 @@ public class UsuarioService {
                     String cpf = dataFormatter.formatCellValue(row.getCell(3));
 
                     if (nome.isEmpty() || email.isEmpty() || cpf.isEmpty()) {
-                        System.out.println("Linha " + row.getRowNum() + " ignorada: dados incompletos.");
                         continue;
                     }
 
                     UsuarioDTO dto = new UsuarioDTO(nome, email, senha, cpf);
                     criarUsuario(dto);
-                    System.out.println("Usuário criado: " + nome);
+                    System.out.println("Usuário criado via Excel: " + nome);
 
                 } catch (Exception e) {
                     System.err.println("Erro na linha " + row.getRowNum() + ": " + e.getMessage());
@@ -115,8 +112,14 @@ public class UsuarioService {
             workbook.close();
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Erro ao processar arquivo: " + e.getMessage());
+            throw new RuntimeException("Erro ao processar arquivo Excel: " + e.getMessage());
         }
+    }
+
+    private BigDecimal gerarSaldoAleatorio() {
+        double min = 1000.0;
+        double max = 10000.0;
+        double randomValue = min + (Math.random() * (max - min));
+        return BigDecimal.valueOf(randomValue).setScale(2, RoundingMode.HALF_UP);
     }
 }

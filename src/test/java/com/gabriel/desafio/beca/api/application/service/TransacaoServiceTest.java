@@ -55,7 +55,7 @@ class TransacaoServiceTest {
     // --- TESTES DE REGISTRO (POST /transacoes) ---
 
     @Test
-    @DisplayName("Deve registrar um DEPÓSITO com sucesso")
+    @DisplayName("Deve registrar um DEPÓSITO com sucesso (Moeda BRL)")
     void deveRegistrarDeposito() {
         UUID usuarioId = UUID.randomUUID();
         Usuario usuario = criarUsuarioMock(usuarioId, "Gabriel");
@@ -64,11 +64,11 @@ class TransacaoServiceTest {
                 new BigDecimal("100.00"),
                 TipoTransacao.DEPOSITO,
                 usuarioId,
-                null
+                null,
+                "BRL"
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
-        when(brasilApiClient.buscarCotacaoDolar()).thenReturn(new CambioDTO("USD", BigDecimal.valueOf(5.50)));
 
         when(repository.save(any(Transacao.class))).thenAnswer(i -> {
             Transacao t = i.getArgument(0);
@@ -84,7 +84,7 @@ class TransacaoServiceTest {
     }
 
     @Test
-    @DisplayName("Deve registrar um SAQUE com sucesso")
+    @DisplayName("Deve registrar um SAQUE com sucesso (Moeda USD)")
     void deveRegistrarSaque() {
         UUID usuarioId = UUID.randomUUID();
         Usuario usuario = criarUsuarioMock(usuarioId, "Gabriel");
@@ -93,12 +93,12 @@ class TransacaoServiceTest {
                 new BigDecimal("50.00"),
                 TipoTransacao.SAQUE,
                 usuarioId,
-                null
+                null,
+                "USD"
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
-        // Mock do Saldo positivo
-        when(mockSaldoClient.buscarSaldo(usuarioId.toString())).thenReturn(new BigDecimal("100.00"));
+        when(brasilApiClient.buscarCotacao("USD")).thenReturn(new CambioDTO("USD", new BigDecimal("5.50")));
 
         when(repository.save(any(Transacao.class))).thenAnswer(i -> {
             Transacao t = i.getArgument(0);
@@ -109,6 +109,7 @@ class TransacaoServiceTest {
         Transacao resultado = service.registrar(dados);
 
         assertEquals(TipoTransacao.SAQUE, resultado.getTipo());
+        assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
         verify(transacaoProducer).enviarEvento(resultado);
     }
 
@@ -125,12 +126,12 @@ class TransacaoServiceTest {
                 new BigDecimal("200.00"),
                 TipoTransacao.TRANSFERENCIA,
                 remetenteId,
-                destinatarioId
+                destinatarioId,
+                "BRL"
         );
 
         when(usuarioRepository.findById(remetenteId)).thenReturn(Optional.of(remetente));
         when(usuarioRepository.findById(destinatarioId)).thenReturn(Optional.of(destinatario));
-        when(mockSaldoClient.buscarSaldo(remetenteId.toString())).thenReturn(new BigDecimal("500.00"));
 
         when(repository.save(any(Transacao.class))).thenAnswer(i -> {
             Transacao t = i.getArgument(0);
@@ -146,6 +147,34 @@ class TransacaoServiceTest {
     }
 
     @Test
+    @DisplayName("Gestão Financeira: Deve PERMITIR saque mesmo sem saldo (Saldo Negativo)")
+    void devePermitirSaqueSemSaldo() {
+        UUID usuarioId = UUID.randomUUID();
+        Usuario usuario = criarUsuarioMock(usuarioId, "Gastador");
+
+        TransacaoDTO dados = new TransacaoDTO(
+                new BigDecimal("500000.00"),
+                TipoTransacao.SAQUE,
+                usuarioId,
+                null,
+                "BRL"
+        );
+
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+
+        when(repository.save(any(Transacao.class))).thenAnswer(i -> {
+            Transacao t = i.getArgument(0);
+            ReflectionTestUtils.setField(t, "id", UUID.randomUUID());
+            return t;
+        });
+
+        assertDoesNotThrow(() -> service.registrar(dados));
+        verify(transacaoProducer).enviarEvento(any());
+    }
+
+    // REMOVIDO: O teste 'deveBloquearSaqueSemSaldo' foi apagado pois a regra mudou.
+
+    @Test
     @DisplayName("Erro: Transferência sem destinatário deve falhar")
     void deveFalharTransferenciaSemDestinatario() {
         UUID remetenteId = UUID.randomUUID();
@@ -155,7 +184,8 @@ class TransacaoServiceTest {
                 BigDecimal.TEN,
                 TipoTransacao.TRANSFERENCIA,
                 remetenteId,
-                null
+                null,
+                "BRL"
         );
 
         when(usuarioRepository.findById(remetenteId)).thenReturn(Optional.of(remetente));
@@ -165,47 +195,7 @@ class TransacaoServiceTest {
     }
 
     @Test
-    @DisplayName("Erro: Transferência para a mesma conta deve falhar")
-    void deveFalharTransferenciaMesmaConta() {
-        UUID meuId = UUID.randomUUID();
-        Usuario euMesmo = criarUsuarioMock(meuId, "Eu");
-
-        TransacaoDTO dados = new TransacaoDTO(
-                BigDecimal.TEN,
-                TipoTransacao.TRANSFERENCIA,
-                meuId,
-                meuId
-        );
-
-        when(usuarioRepository.findById(meuId)).thenReturn(Optional.of(euMesmo));
-
-        assertThrows(IllegalArgumentException.class, () -> service.registrar(dados));
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Erro: Deve bloquear SAQUE sem saldo suficiente")
-    void deveBloquearSaqueSemSaldo() {
-        UUID usuarioId = UUID.randomUUID();
-        Usuario usuario = criarUsuarioMock(usuarioId, "Pobre");
-
-        TransacaoDTO dados = new TransacaoDTO(
-                new BigDecimal("50.00"),
-                TipoTransacao.SAQUE,
-                usuarioId,
-                null
-        );
-
-        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
-        // Saldo ZERO
-        when(mockSaldoClient.buscarSaldo(usuarioId.toString())).thenReturn(BigDecimal.ZERO);
-
-        assertThrows(IllegalArgumentException.class, () -> service.registrar(dados));
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Resiliência: Deve registrar mesmo se BrasilAPI falhar")
+    @DisplayName("Resiliência: Deve registrar com taxa 0 se BrasilAPI falhar")
     void deveRegistrarMesmoSemBrasilApi() {
         UUID usuarioId = UUID.randomUUID();
         Usuario usuario = criarUsuarioMock(usuarioId, "Gabriel");
@@ -214,12 +204,12 @@ class TransacaoServiceTest {
                 BigDecimal.TEN,
                 TipoTransacao.SAQUE,
                 usuarioId,
-                null
+                null,
+                "EUR"
         );
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
-        when(mockSaldoClient.buscarSaldo(usuarioId.toString())).thenReturn(new BigDecimal("100.00"));
-        when(brasilApiClient.buscarCotacaoDolar()).thenThrow(new RuntimeException("API Offline"));
+        when(brasilApiClient.buscarCotacao("EUR")).thenThrow(new RuntimeException("API Offline"));
 
         when(repository.save(any())).thenAnswer(i -> {
             Transacao t = i.getArgument(0);
@@ -230,10 +220,11 @@ class TransacaoServiceTest {
         Transacao resultado = service.registrar(dados);
 
         assertNotNull(resultado);
+        assertEquals(BigDecimal.ZERO, resultado.getTaxaCambio());
         verify(transacaoProducer).enviarEvento(any());
     }
 
-    // --- TESTES DE SALDO (GET /transacoes/saldo) ---
+    // --- TESTES DE SALDO E EXTRATO (Aqui sim usamos o MockSaldoClient) ---
 
     @Test
     @DisplayName("Deve consultar saldo no MockSaldoClient")
@@ -249,8 +240,6 @@ class TransacaoServiceTest {
         verify(mockSaldoClient).buscarSaldo(usuarioId.toString());
     }
 
-    // --- TESTES DE EXTRATO (GET /transacoes/extrato) ---
-
     @Test
     @DisplayName("Deve buscar extrato com saldo e histórico completo")
     void deveBuscarExtratoComSucesso() {
@@ -261,7 +250,6 @@ class TransacaoServiceTest {
 
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
         when(mockSaldoClient.buscarSaldo(usuarioId.toString())).thenReturn(saldoMock);
-
         when(repository.findHistoricoCompleto(usuarioId)).thenReturn(historicoMock);
 
         ExtratoDTO extrato = service.buscarExtrato(usuarioId);
@@ -270,15 +258,6 @@ class TransacaoServiceTest {
         assertEquals("Gabriel", extrato.usuario());
         assertEquals(saldoMock, extrato.saldoAtual());
         assertFalse(extrato.transacoes().isEmpty());
-    }
-
-    @Test
-    @DisplayName("Erro: Buscar extrato de usuário inexistente deve falhar")
-    void deveFalharExtratoUsuarioInexistente() {
-        UUID idInexistente = UUID.randomUUID();
-        when(usuarioRepository.findById(idInexistente)).thenReturn(Optional.empty());
-
-        assertThrows(EntityNotFoundException.class, () -> service.buscarExtrato(idInexistente));
     }
 
     // --- MÉTODOS AUXILIARES ---

@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,7 +40,7 @@ class UsuarioServiceTest {
     // --- TESTES DE CRIAÇÃO (POST) ---
 
     @Test
-    @DisplayName("Deve criar usuário com sucesso")
+    @DisplayName("Deve criar usuário com sucesso e gerar saldo aleatório")
     void deveCriarUsuarioComSucesso() {
         UsuarioDTO dados = new UsuarioDTO("Gabriel", "g@email.com", "123", "000");
 
@@ -53,8 +54,10 @@ class UsuarioServiceTest {
         });
 
         Usuario criado = service.criarUsuario(dados);
+
         assertNotNull(criado.getId());
-        verify(mockSaldoClient).criarConta(anyString());
+
+        verify(mockSaldoClient).criarConta(anyString(), any(BigDecimal.class));
     }
 
     @Test
@@ -136,7 +139,7 @@ class UsuarioServiceTest {
     // --- TESTE DE UPLOAD (EXCEL) ---
 
     @Test
-    @DisplayName("Deve importar usuários via Excel")
+    @DisplayName("Deve importar usuários via Excel e gerar saldo")
     void deveImportarExcel() throws Exception {
         try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
              var bos = new java.io.ByteArrayOutputStream()) {
@@ -169,7 +172,8 @@ class UsuarioServiceTest {
             service.salvarUsuariosViaExcel(arquivo);
 
             verify(repository, times(1)).save(any());
-            verify(mockSaldoClient, times(1)).criarConta(anyString());
+
+            verify(mockSaldoClient, times(1)).criarConta(anyString(), any(BigDecimal.class));
         }
     }
 }

@@ -7,15 +7,23 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record TransacaoDTO(
-        @NotNull(message = "O valor é obrigatório")
-        @Positive(message = "O valor deve ser maior que zero")
+        @NotNull(message = "Valor obrigatório")
+        @Positive(message = "Valor deve ser positivo")
         BigDecimal valor,
 
-        @NotNull(message = "O tipo da transação é obrigatório")
+        @NotNull(message = "Tipo da transação obrigatório")
         TipoTransacao tipo,
 
-        @NotNull(message = "O ID do usuário (remetente) é obrigatório")
+        @NotNull(message = "ID do usuário obrigatório")
         UUID usuarioId,
 
-        UUID destinatarioId
-) {}
+        UUID destinatarioId,
+
+        String moeda
+) {
+    public TransacaoDTO {
+        if (moeda == null) {
+            moeda = "BRL";
+        }
+    }
+}

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -23,19 +24,22 @@ public class RelatorioService {
 
             document.open();
 
-            document.addTitle("Extrato Bancário - Banco Beca");
-            document.addAuthor("Sistema Banco Beca");
+            document.addTitle("Extrato Financeiro - Sistema de Gestão Financeira Beca");
+            document.addAuthor("Sistema de Gestão Financeira Beca");
 
             Font fonteTitulo = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Color.BLACK);
-            Paragraph titulo = new Paragraph("Extrato Bancário", fonteTitulo);
+            Paragraph titulo = new Paragraph("Relatório de Gestão Financeira", fonteTitulo);
             titulo.setAlignment(Element.ALIGN_CENTER);
             document.add(titulo);
             document.add(Chunk.NEWLINE);
 
             Font fonteDados = FontFactory.getFont(FontFactory.HELVETICA, 12, Color.DARK_GRAY);
+
+            DateTimeFormatter formatoDataEmissao = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
             document.add(new Paragraph("Cliente: " + extrato.usuario(), fonteDados));
-            document.add(new Paragraph("Saldo Atual: R$ " + extrato.saldoAtual(), fonteDados));
-            document.add(new Paragraph("Data de Emissão: " + java.time.LocalDate.now(), fonteDados));
+            document.add(new Paragraph("Saldo Bancário: R$ " + extrato.saldoAtual(), fonteDados));
+            document.add(new Paragraph("Data de Emissão: " + LocalDate.now().format(formatoDataEmissao), fonteDados));
             document.add(Chunk.NEWLINE);
 
             PdfPTable table = new PdfPTable(4);
@@ -44,16 +48,15 @@ public class RelatorioService {
 
             addTableHeader(table, "ID Transação");
             addTableHeader(table, "Data");
-            addTableHeader(table, "Detalhes / Tipo");
+            addTableHeader(table, "Tipo / Detalhes");
             addTableHeader(table, "Valor (R$)");
 
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            DateTimeFormatter formatterTabela = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
             for (Transacao t : extrato.transacoes()) {
 
                 Font fonteValor;
                 String detalhesDisplay;
-
                 String idTransacaoDisplay = t.getId().toString();
 
                 String nomeDonoExtrato = extrato.usuario();
@@ -67,19 +70,21 @@ public class RelatorioService {
                     fonteValor = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.RED);
                     detalhesDisplay = "SAQUE";
 
+                } else if (t.getTipo() == TipoTransacao.COMPRA) {
+                    fonteValor = FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(200, 80, 0));
+                    detalhesDisplay = "COMPRA";
+
                 } else {
                     boolean fuiEuQueMandei = nomeRemetente.equalsIgnoreCase(nomeDonoExtrato);
 
                     if (fuiEuQueMandei) {
                         fonteValor = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.BLUE);
-
                         String idDestinatario = (t.getDestinatario() != null) ? t.getDestinatario().getId().toString() : "N/A";
                         detalhesDisplay = "TRANSF. ENVIADA\nPara: " + idDestinatario;
 
                     } else {
                         Color amareloLegivel = new Color(204, 153, 0);
                         fonteValor = FontFactory.getFont(FontFactory.HELVETICA, 10, amareloLegivel);
-
                         String idRemetente = t.getUsuario().getId().toString();
                         detalhesDisplay = "TRANSF. RECEBIDA\nDe: " + idRemetente;
                     }
@@ -88,7 +93,7 @@ public class RelatorioService {
                 Font fonteId = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
                 table.addCell(new Paragraph(idTransacaoDisplay, fonteId));
 
-                table.addCell(new Paragraph(t.getData().format(formatter), FontFactory.getFont(FontFactory.HELVETICA, 9)));
+                table.addCell(new Paragraph(t.getData().format(formatterTabela), FontFactory.getFont(FontFactory.HELVETICA, 9)));
 
                 table.addCell(new Paragraph(detalhesDisplay, FontFactory.getFont(FontFactory.HELVETICA, 9)));
 
@@ -109,8 +114,9 @@ public class RelatorioService {
         PdfPCell header = new PdfPCell();
         header.setBackgroundColor(Color.LIGHT_GRAY);
         header.setBorderWidth(1);
-        header.setPhrase(new Phrase(headerTitle));
+        header.setPhrase(new Phrase(headerTitle, FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10)));
         header.setHorizontalAlignment(Element.ALIGN_CENTER);
+        header.setVerticalAlignment(Element.ALIGN_MIDDLE);
         table.addCell(header);
     }
 }
