@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -19,7 +20,8 @@ public class RelatorioService {
 
     public byte[] gerarExtratoPdf(ExtratoDTO extrato) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Document document = new Document(PageSize.A4);
+
+            Document document = new Document(PageSize.A4.rotate());
             PdfWriter.getInstance(document, out);
 
             document.open();
@@ -34,7 +36,6 @@ public class RelatorioService {
             document.add(Chunk.NEWLINE);
 
             Font fonteDados = FontFactory.getFont(FontFactory.HELVETICA, 12, Color.DARK_GRAY);
-
             DateTimeFormatter formatoDataEmissao = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
             document.add(new Paragraph("Cliente: " + extrato.usuario(), fonteDados));
@@ -42,13 +43,15 @@ public class RelatorioService {
             document.add(new Paragraph("Data de Emissão: " + LocalDate.now().format(formatoDataEmissao), fonteDados));
             document.add(Chunk.NEWLINE);
 
-            PdfPTable table = new PdfPTable(4);
+            PdfPTable table = new PdfPTable(6);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{4f, 2f, 3f, 2f});
+            table.setWidths(new float[]{3.8f, 2f, 1.5f, 3.5f, 1.8f, 2f});
 
             addTableHeader(table, "ID Transação");
             addTableHeader(table, "Data");
+            addTableHeader(table, "Categoria");
             addTableHeader(table, "Tipo / Detalhes");
+            addTableHeader(table, "Cotação");
             addTableHeader(table, "Valor (R$)");
 
             DateTimeFormatter formatterTabela = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -58,7 +61,6 @@ public class RelatorioService {
                 Font fonteValor;
                 String detalhesDisplay;
                 String idTransacaoDisplay = t.getId().toString();
-
                 String nomeDonoExtrato = extrato.usuario();
                 String nomeRemetente = t.getUsuario().getNome();
 
@@ -92,11 +94,21 @@ public class RelatorioService {
 
                 Font fonteId = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.DARK_GRAY);
                 table.addCell(new Paragraph(idTransacaoDisplay, fonteId));
-
                 table.addCell(new Paragraph(t.getData().format(formatterTabela), FontFactory.getFont(FontFactory.HELVETICA, 9)));
-
+                String catDisplay = (t.getCategoria() != null) ? t.getCategoria().toString() : "OUTROS";
+                table.addCell(new Paragraph(catDisplay, FontFactory.getFont(FontFactory.HELVETICA, 9)));
                 table.addCell(new Paragraph(detalhesDisplay, FontFactory.getFont(FontFactory.HELVETICA, 9)));
 
+                String taxaDisplay;
+                BigDecimal taxa = t.getTaxaCambio();
+                String moeda = (t.getMoeda() != null) ? t.getMoeda() : "BRL";
+
+                if (taxa == null || taxa.compareTo(BigDecimal.ONE) == 0 || taxa.compareTo(BigDecimal.ZERO) == 0) {
+                    taxaDisplay = "BRL (1:1)";
+                } else {
+                    taxaDisplay = moeda + " " + taxa.toString();
+                }
+                table.addCell(new Paragraph(taxaDisplay, FontFactory.getFont(FontFactory.HELVETICA, 9)));
                 table.addCell(new Paragraph("R$ " + t.getValor().toString(), fonteValor));
             }
 

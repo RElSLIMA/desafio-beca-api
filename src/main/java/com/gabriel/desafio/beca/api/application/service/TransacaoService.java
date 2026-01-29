@@ -62,7 +62,8 @@ public class TransacaoService {
                 dados.categoria(),
                 usuario,
                 destinatario,
-                taxaCambio
+                taxaCambio,
+                dados.moeda()
         );
         transacao.setStatus(StatusTransacao.PENDING);
 

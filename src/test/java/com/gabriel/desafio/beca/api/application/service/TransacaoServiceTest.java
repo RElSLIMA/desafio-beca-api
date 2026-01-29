@@ -81,6 +81,8 @@ class TransacaoServiceTest {
         assertEquals(TipoTransacao.DEPOSITO, resultado.getTipo());
         assertEquals(StatusTransacao.PENDING, resultado.getStatus());
         assertEquals(CategoriaTransacao.OUTROS, resultado.getCategoria());
+        assertEquals("BRL", resultado.getMoeda());
+
         verify(transacaoProducer).enviarEvento(any(Transacao.class));
     }
 
@@ -113,6 +115,8 @@ class TransacaoServiceTest {
         assertEquals(TipoTransacao.SAQUE, resultado.getTipo());
         assertEquals(CategoriaTransacao.LAZER, resultado.getCategoria());
         assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
+        assertEquals("USD", resultado.getMoeda());
+
         verify(transacaoProducer).enviarEvento(resultado);
     }
 
@@ -147,6 +151,8 @@ class TransacaoServiceTest {
 
         assertEquals(TipoTransacao.TRANSFERENCIA, resultado.getTipo());
         assertNotNull(resultado.getDestinatario());
+        assertEquals("BRL", resultado.getMoeda());
+
         verify(transacaoProducer).enviarEvento(resultado);
     }
 
@@ -226,6 +232,8 @@ class TransacaoServiceTest {
 
         assertNotNull(resultado);
         assertEquals(BigDecimal.ZERO, resultado.getTaxaCambio());
+        assertEquals("EUR", resultado.getMoeda());
+
         verify(transacaoProducer).enviarEvento(any());
     }
 

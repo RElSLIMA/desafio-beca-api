@@ -32,6 +32,9 @@ public class Transacao implements Serializable {
     @Column(nullable = false)
     private StatusTransacao status;
 
+    @Column(name = "moeda", length = 3)
+    private String moeda;
+
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
@@ -45,7 +48,7 @@ public class Transacao implements Serializable {
 
     public Transacao() {}
 
-    public Transacao(BigDecimal valor, TipoTransacao tipo, CategoriaTransacao categoria, Usuario usuario, Usuario destinatario, BigDecimal taxaCambio) {
+    public Transacao(BigDecimal valor, TipoTransacao tipo, CategoriaTransacao categoria, Usuario usuario, Usuario destinatario, BigDecimal taxaCambio, String moeda) {
         this.valor = valor;
         this.tipo = tipo;
         this.categoria = categoria;
@@ -54,6 +57,7 @@ public class Transacao implements Serializable {
         this.data = LocalDateTime.now();
         this.taxaCambio = taxaCambio;
         this.status = StatusTransacao.PENDING;
+        this.moeda = (moeda != null && !moeda.isEmpty()) ? moeda.toUpperCase() : "BRL";
     }
 
     public UUID getId() { return id; }
@@ -68,4 +72,5 @@ public class Transacao implements Serializable {
     public BigDecimal getTaxaCambio() { return taxaCambio; }
     public StatusTransacao getStatus() { return status; }
     public void setStatus(StatusTransacao status) { this.status = status; }
+    public String getMoeda() { return moeda; }
 }
