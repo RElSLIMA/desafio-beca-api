@@ -1,8 +1,7 @@
 package com.gabriel.desafio.beca.api.application.service;
 
-import com.gabriel.desafio.beca.api.application.dto.CambioDTO;
-import com.gabriel.desafio.beca.api.application.dto.ExtratoDTO;
-import com.gabriel.desafio.beca.api.application.dto.TransacaoDTO;
+import com.gabriel.desafio.beca.api.application.dto.*;
+import com.gabriel.desafio.beca.api.domain.model.CategoriaTransacao;
 import com.gabriel.desafio.beca.api.domain.model.StatusTransacao;
 import com.gabriel.desafio.beca.api.domain.model.TipoTransacao;
 import com.gabriel.desafio.beca.api.domain.model.Transacao;
@@ -12,7 +11,6 @@ import com.gabriel.desafio.beca.api.domain.repository.UsuarioRepository;
 import com.gabriel.desafio.beca.api.infra.client.BrasilApiClient;
 import com.gabriel.desafio.beca.api.infra.client.MockSaldoClient;
 import com.gabriel.desafio.beca.api.infra.messaging.TransacaoProducer;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -65,6 +64,7 @@ class TransacaoServiceTest {
                 TipoTransacao.DEPOSITO,
                 usuarioId,
                 null,
+                null,
                 "BRL"
         );
 
@@ -80,6 +80,7 @@ class TransacaoServiceTest {
 
         assertEquals(TipoTransacao.DEPOSITO, resultado.getTipo());
         assertEquals(StatusTransacao.PENDING, resultado.getStatus());
+        assertEquals(CategoriaTransacao.OUTROS, resultado.getCategoria());
         verify(transacaoProducer).enviarEvento(any(Transacao.class));
     }
 
@@ -93,6 +94,7 @@ class TransacaoServiceTest {
                 new BigDecimal("50.00"),
                 TipoTransacao.SAQUE,
                 usuarioId,
+                CategoriaTransacao.LAZER,
                 null,
                 "USD"
         );
@@ -109,6 +111,7 @@ class TransacaoServiceTest {
         Transacao resultado = service.registrar(dados);
 
         assertEquals(TipoTransacao.SAQUE, resultado.getTipo());
+        assertEquals(CategoriaTransacao.LAZER, resultado.getCategoria());
         assertEquals(new BigDecimal("5.50"), resultado.getTaxaCambio());
         verify(transacaoProducer).enviarEvento(resultado);
     }
@@ -126,6 +129,7 @@ class TransacaoServiceTest {
                 new BigDecimal("200.00"),
                 TipoTransacao.TRANSFERENCIA,
                 remetenteId,
+                CategoriaTransacao.OUTROS,
                 destinatarioId,
                 "BRL"
         );
@@ -156,6 +160,7 @@ class TransacaoServiceTest {
                 new BigDecimal("500000.00"),
                 TipoTransacao.SAQUE,
                 usuarioId,
+                CategoriaTransacao.ALIMENTACAO,
                 null,
                 "BRL"
         );
@@ -172,8 +177,6 @@ class TransacaoServiceTest {
         verify(transacaoProducer).enviarEvento(any());
     }
 
-    // REMOVIDO: O teste 'deveBloquearSaqueSemSaldo' foi apagado pois a regra mudou.
-
     @Test
     @DisplayName("Erro: Transferência sem destinatário deve falhar")
     void deveFalharTransferenciaSemDestinatario() {
@@ -184,6 +187,7 @@ class TransacaoServiceTest {
                 BigDecimal.TEN,
                 TipoTransacao.TRANSFERENCIA,
                 remetenteId,
+                null,
                 null,
                 "BRL"
         );
@@ -204,6 +208,7 @@ class TransacaoServiceTest {
                 BigDecimal.TEN,
                 TipoTransacao.SAQUE,
                 usuarioId,
+                CategoriaTransacao.EDUCACAO,
                 null,
                 "EUR"
         );
@@ -224,7 +229,7 @@ class TransacaoServiceTest {
         verify(transacaoProducer).enviarEvento(any());
     }
 
-    // --- TESTES DE SALDO E EXTRATO (Aqui sim usamos o MockSaldoClient) ---
+    // --- TESTES DE SALDO E EXTRATO ---
 
     @Test
     @DisplayName("Deve consultar saldo no MockSaldoClient")
@@ -258,6 +263,59 @@ class TransacaoServiceTest {
         assertEquals("Gabriel", extrato.usuario());
         assertEquals(saldoMock, extrato.saldoAtual());
         assertFalse(extrato.transacoes().isEmpty());
+    }
+
+    // --- TESTES DE RELATÓRIOS E ANÁLISES ---
+
+    @Test
+    @DisplayName("Deve agrupar dados por DATA convertendo horário")
+    void deveAnalisarPeriodoCorretamente() {
+        UUID usuarioId = UUID.randomUUID();
+        LocalDate inicio = LocalDate.of(2026, 1, 1);
+        LocalDate fim = LocalDate.of(2026, 1, 5);
+
+        List<AnaliseDiariaDTO> mockResultado = List.of(
+                new AnaliseDiariaDTO(LocalDate.of(2026, 1, 2), new BigDecimal("150.00"))
+        );
+
+        when(repository.agruparPorData(
+                eq(usuarioId),
+                eq(inicio.atStartOfDay()),
+                eq(fim.atTime(23, 59, 59))
+        )).thenReturn(mockResultado);
+
+        List<AnaliseDiariaDTO> resultado = service.analisarPeriodo(usuarioId, inicio, fim);
+
+        assertNotNull(resultado);
+        assertEquals(1, resultado.size());
+        verify(repository).agruparPorData(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Deve agrupar dados por CATEGORIA convertendo horário")
+    void deveAnalisarPorCategoriaCorretamente() {
+        UUID usuarioId = UUID.randomUUID();
+        LocalDate inicio = LocalDate.of(2026, 1, 1);
+        LocalDate fim = LocalDate.of(2026, 1, 5);
+
+        List<AnaliseCategoriaDTO> mockResultado = List.of(
+                new AnaliseCategoriaDTO(CategoriaTransacao.ALIMENTACAO, new BigDecimal("200.00")),
+                new AnaliseCategoriaDTO(CategoriaTransacao.LAZER, new BigDecimal("100.00"))
+        );
+
+        when(repository.agruparPorCategoria(
+                eq(usuarioId),
+                eq(inicio.atStartOfDay()),
+                eq(fim.atTime(23, 59, 59))
+        )).thenReturn(mockResultado);
+
+        List<AnaliseCategoriaDTO> resultado = service.analisarPorCategoria(usuarioId, inicio, fim);
+
+        assertNotNull(resultado);
+        assertEquals(2, resultado.size());
+        assertEquals(CategoriaTransacao.ALIMENTACAO, resultado.get(0).categoria());
+
+        verify(repository).agruparPorCategoria(any(), any(), any());
     }
 
     // --- MÉTODOS AUXILIARES ---

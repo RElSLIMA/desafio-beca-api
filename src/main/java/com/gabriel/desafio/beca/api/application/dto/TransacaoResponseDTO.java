@@ -1,5 +1,6 @@
 package com.gabriel.desafio.beca.api.application.dto;
 
+import com.gabriel.desafio.beca.api.domain.model.CategoriaTransacao;
 import com.gabriel.desafio.beca.api.domain.model.StatusTransacao;
 import com.gabriel.desafio.beca.api.domain.model.TipoTransacao;
 
@@ -11,6 +12,7 @@ public record TransacaoResponseDTO(
         UUID id,
         BigDecimal valor,
         TipoTransacao tipo,
+        CategoriaTransacao categoria,
         StatusTransacao status,
         BigDecimal taxaCambio,
         LocalDateTime data

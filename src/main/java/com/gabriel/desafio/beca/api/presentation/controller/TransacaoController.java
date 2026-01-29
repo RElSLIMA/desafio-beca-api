@@ -1,19 +1,20 @@
 package com.gabriel.desafio.beca.api.presentation.controller;
 
-import com.gabriel.desafio.beca.api.application.dto.ExtratoDTO;
-import com.gabriel.desafio.beca.api.application.dto.TransacaoDTO;
-import com.gabriel.desafio.beca.api.application.dto.TransacaoResponseDTO;
+import com.gabriel.desafio.beca.api.application.dto.*;
 import com.gabriel.desafio.beca.api.application.service.RelatorioService;
 import com.gabriel.desafio.beca.api.application.service.TransacaoService;
 import com.gabriel.desafio.beca.api.domain.model.Transacao;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +35,7 @@ public class TransacaoController {
                 transacao.getId(),
                 transacao.getValor(),
                 transacao.getTipo(),
+                transacao.getCategoria(),
                 transacao.getStatus(),
                 transacao.getTaxaCambio(),
                 transacao.getData()
@@ -52,6 +54,26 @@ public class TransacaoController {
     public ResponseEntity<ExtratoDTO> consultarExtrato(@RequestParam UUID usuarioId) {
         ExtratoDTO extrato = service.buscarExtrato(usuarioId);
         return ResponseEntity.ok(extrato);
+    }
+
+    @GetMapping("/analise")
+    public ResponseEntity<List<AnaliseDiariaDTO>> analisarPeriodo(
+            @RequestParam UUID usuarioId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim
+    ) {
+        var analise = service.analisarPeriodo(usuarioId, inicio, fim);
+        return ResponseEntity.ok(analise);
+    }
+
+    @GetMapping("/analise/categoria")
+    public ResponseEntity<List<AnaliseCategoriaDTO>> analisarPorCategoria(
+            @RequestParam UUID usuarioId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim
+    ) {
+        var analise = service.analisarPorCategoria(usuarioId, inicio, fim);
+        return ResponseEntity.ok(analise);
     }
 
     @GetMapping("/exportar")

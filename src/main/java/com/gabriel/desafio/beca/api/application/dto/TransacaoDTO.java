@@ -1,8 +1,10 @@
 package com.gabriel.desafio.beca.api.application.dto;
 
+import com.gabriel.desafio.beca.api.domain.model.CategoriaTransacao;
 import com.gabriel.desafio.beca.api.domain.model.TipoTransacao;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -17,6 +19,8 @@ public record TransacaoDTO(
         @NotNull(message = "ID do usuário obrigatório")
         UUID usuarioId,
 
+        CategoriaTransacao categoria,
+
         UUID destinatarioId,
 
         String moeda
@@ -24,6 +28,9 @@ public record TransacaoDTO(
     public TransacaoDTO {
         if (moeda == null) {
             moeda = "BRL";
+        }
+        if (categoria == null) {
+            categoria = CategoriaTransacao.OUTROS;
         }
     }
 }

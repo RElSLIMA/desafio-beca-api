@@ -1,5 +1,7 @@
 package com.gabriel.desafio.beca.api.application.service;
 
+import com.gabriel.desafio.beca.api.application.dto.AnaliseCategoriaDTO;
+import com.gabriel.desafio.beca.api.application.dto.AnaliseDiariaDTO;
 import com.gabriel.desafio.beca.api.application.dto.ExtratoDTO;
 import com.gabriel.desafio.beca.api.application.dto.TransacaoDTO;
 import com.gabriel.desafio.beca.api.domain.model.StatusTransacao;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,8 +47,8 @@ public class TransacaoService {
 
     @Transactional
     public Transacao registrar(TransacaoDTO dados) {
-        log.info("Iniciando registro de transação ({}) - Tipo: {} - Usuário: {}",
-                dados.moeda(), dados.tipo(), dados.usuarioId());
+        log.info("Iniciando registro de transação ({}) - Tipo: {} - Categoria: {} - Usuário: {}",
+                dados.moeda(), dados.tipo(), dados.categoria(), dados.usuarioId());
 
         Usuario usuario = usuarioRepository.findById(dados.usuarioId())
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
@@ -56,6 +59,7 @@ public class TransacaoService {
         Transacao transacao = new Transacao(
                 dados.valor(),
                 dados.tipo(),
+                dados.categoria(),
                 usuario,
                 destinatario,
                 taxaCambio
@@ -80,6 +84,16 @@ public class TransacaoService {
         List<Transacao> historico = repository.findHistoricoCompleto(usuarioId);
 
         return new ExtratoDTO(usuario.getNome(), saldoMock, historico);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AnaliseDiariaDTO> analisarPeriodo(UUID usuarioId, LocalDate inicio, LocalDate fim) {
+        log.info("Gerando análise de período para usuário {} entre {} e {}", usuarioId, inicio, fim);
+
+        var dataInicio = inicio.atStartOfDay();
+        var dataFim = fim.atTime(23, 59, 59);
+
+        return repository.agruparPorData(usuarioId, dataInicio, dataFim);
     }
 
     private Usuario buscarDestinatario(TransacaoDTO dados) {
@@ -120,5 +134,13 @@ public class TransacaoService {
         } catch (Exception e) {
             log.error("Erro ao enviar evento para o Kafka", e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<AnaliseCategoriaDTO> analisarPorCategoria(UUID usuarioId, LocalDate inicio, LocalDate fim) {
+        var dataInicio = inicio.atStartOfDay();
+        var dataFim = fim.atTime(23, 59, 59);
+
+        return repository.agruparPorCategoria(usuarioId, dataInicio, dataFim);
     }
 }

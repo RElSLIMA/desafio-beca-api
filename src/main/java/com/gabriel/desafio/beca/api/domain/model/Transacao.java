@@ -26,6 +26,10 @@ public class Transacao implements Serializable {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    private CategoriaTransacao categoria;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private StatusTransacao status;
 
     @ManyToOne
@@ -41,9 +45,10 @@ public class Transacao implements Serializable {
 
     public Transacao() {}
 
-    public Transacao(BigDecimal valor, TipoTransacao tipo, Usuario usuario, Usuario destinatario, BigDecimal taxaCambio) {
+    public Transacao(BigDecimal valor, TipoTransacao tipo, CategoriaTransacao categoria, Usuario usuario, Usuario destinatario, BigDecimal taxaCambio) {
         this.valor = valor;
         this.tipo = tipo;
+        this.categoria = categoria;
         this.usuario = usuario;
         this.destinatario = destinatario;
         this.data = LocalDateTime.now();
@@ -56,6 +61,8 @@ public class Transacao implements Serializable {
     public BigDecimal getValor() { return valor; }
     public LocalDateTime getData() { return data; }
     public TipoTransacao getTipo() { return tipo; }
+    public CategoriaTransacao getCategoria() { return categoria; }
+    public void setCategoria(CategoriaTransacao categoria) { this.categoria = categoria; }
     public Usuario getUsuario() { return usuario; }
     public Usuario getDestinatario() { return destinatario; }
     public BigDecimal getTaxaCambio() { return taxaCambio; }
